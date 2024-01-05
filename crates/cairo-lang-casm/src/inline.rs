@@ -220,6 +220,7 @@ macro_rules! append_instruction {
             body: $body,
             inc_ap: $crate::is_inc_ap!($($ap++)?),
             hints: current_hints,
+            debug_info: None
         };
         $ctx.current_code_offset += instr.body.op_size();
         $ctx.instructions.push(instr);

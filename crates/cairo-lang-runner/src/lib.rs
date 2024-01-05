@@ -143,7 +143,7 @@ pub struct SierraCasmRunner {
     /// The sierra program.
     sierra_program: cairo_lang_sierra::program::Program,
     /// Metadata for the Sierra program.
-    metadata: Metadata,
+    pub metadata: Metadata,
     /// Program registry for the Sierra program.
     sierra_program_registry: ProgramRegistry<CoreType, CoreLibfunc>,
     /// Program registry for the Sierra program.
@@ -193,6 +193,21 @@ impl SierraCasmRunner {
         let initial_gas = self.get_initial_available_gas(func, available_gas)?;
         let (entry_code, builtins) = self.create_entry_code(func, args, initial_gas)?;
         let footer = self.create_code_footer();
+        // dbg!(entry_code.len(), footer.len());
+        // dbg!(entry_code
+        //     .iter()
+        //     .map(|i| i.assemble().encode())
+        //     .flatten()
+        //     .map(|x| x.to_string())
+        //     .collect::<Vec<String>>()
+        //     .len());
+        // let footer_encode = footer
+        //     .iter()
+        //     .map(|i| i.assemble().encode())
+        //     .flatten()
+        //     .map(|x| x.to_string())
+        //     .collect::<Vec<String>>();
+        // dbg!(footer_encode);
         let instructions =
             chain!(entry_code.iter(), self.casm_program.instructions.iter(), footer.iter());
         let (hints_dict, string_to_hint) = build_hints_dict(instructions.clone());
@@ -367,7 +382,11 @@ impl SierraCasmRunner {
             .funcs
             .iter()
             .find(|f| {
-                if let Some(name) = &f.id.debug_name { name.ends_with(name_suffix) } else { false }
+                if let Some(name) = &f.id.debug_name {
+                    name.ends_with(name_suffix)
+                } else {
+                    false
+                }
             })
             .ok_or_else(|| RunnerError::MissingFunction { suffix: name_suffix.to_owned() })
     }

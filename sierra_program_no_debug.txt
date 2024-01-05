@@ -1,0 +1,18 @@
+type [0] = u16 [storable: true, drop: true, dup: true, zero_sized: false];
+type [1] = u8 [storable: true, drop: true, dup: true, zero_sized: false];
+type [2] = RangeCheck [storable: true, drop: false, dup: false, zero_sized: false];
+
+libfunc [1] = u16_const<5184>;
+libfunc [2] = store_temp<[0]>;
+libfunc [0] = u16_sqrt;
+libfunc [3] = store_temp<[2]>;
+libfunc [4] = store_temp<[1]>;
+
+[1]() -> ([1]); // 0
+[2]([1]) -> ([1]); // 1
+[0]([0], [1]) -> ([2], [3]); // 2
+[3]([2]) -> ([2]); // 3
+[4]([3]) -> ([3]); // 4
+return([2], [3]); // 5
+
+[0]@0([0]: [2]) -> ([2], [1]);

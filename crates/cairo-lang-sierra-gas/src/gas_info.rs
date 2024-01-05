@@ -8,7 +8,7 @@ use cairo_lang_utils::ordered_hash_map::OrderedHashMap;
 use itertools::{chain, Itertools};
 
 /// Gas information for a Sierra program.
-#[derive(Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct GasInfo {
     /// The values of variables at matching libfuncs at given statements indices.
     pub variable_values: OrderedHashMap<(StatementIdx, CostTokenType), i64>,

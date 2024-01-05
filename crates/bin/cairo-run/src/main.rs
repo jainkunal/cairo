@@ -1,5 +1,7 @@
 //! Compiles and runs a Cairo program.
 
+use std::fs::File;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Ok};
@@ -63,6 +65,49 @@ fn main() -> anyhow::Result<()> {
         contracts_info,
     )
     .with_context(|| "Failed setting up runner.")?;
+
+    dbg!(runner.metadata.clone());
+    dbg!(sierra_program.as_ref().type_declarations.len());
+    dbg!(sierra_program.as_ref().libfunc_declarations.len());
+
+    // Write string to file sierra_program to file
+    let mut file = File::create("/Users/kunaljain/Code/cairo/sierra_program.txt").unwrap();
+    file.write_all(replacer.apply(&sierra_program).to_string().as_bytes()).unwrap();
+    file.flush().unwrap();
+
+    let mut file = File::create("/Users/kunaljain/Code/cairo/sierra_program_no_debug.txt").unwrap();
+    file.write_all(sierra_program.to_string().as_bytes()).unwrap();
+    file.flush().unwrap();
+
+    let mut file = File::create("/Users/kunaljain/Code/cairo/casm_program.txt").unwrap();
+    file.write_all(runner.get_casm_program().to_string().as_bytes()).unwrap();
+    file.flush().unwrap();
+
+    // dbg!(&runner.get_casm_program().instructions);
+
+    let mut file = File::create("/Users/kunaljain/Code/cairo/casm_bytecode.txt").unwrap();
+    let x: Vec<String> = runner
+        .get_casm_program()
+        .instructions
+        .iter()
+        .map(|i| i.assemble().encode())
+        .flatten()
+        .map(|x| x.to_string())
+        .collect();
+    file.write_all(x.join("\n").as_bytes()).unwrap();
+    file.flush().unwrap();
+    // dbg!(&runner.get_casm_program().debug_info);
+    dbg!(runner.get_casm_program().instructions.len());
+    // for (i, instruction) in runner.get_casm_program().instructions.iter().enumerate() {
+    //     dbg!(i);
+    //     dbg!(instruction);
+    //     // dbg!(instruction.assemble());
+    //     // dbg!(instruction.assemble().encode());
+    //     if i == 10 {
+    //         break;
+    //     }
+    // }
+    dbg!(runner.get_casm_program().debug_info.sierra_statement_info.len());
     let result = runner
         .run_function_with_starknet_context(
             runner.find_function("::main")?,

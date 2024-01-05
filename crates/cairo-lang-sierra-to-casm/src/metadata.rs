@@ -12,7 +12,7 @@ use cairo_lang_sierra_gas::{
 use cairo_lang_utils::ordered_hash_map::OrderedHashMap;
 use thiserror::Error;
 
-#[derive(Default)]
+#[derive(Clone, Default, Debug)]
 /// Metadata provided with a Sierra program to simplify the compilation to casm.
 pub struct Metadata {
     /// AP changes information for Sierra user functions.

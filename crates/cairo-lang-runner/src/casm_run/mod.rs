@@ -21,7 +21,8 @@ use cairo_vm::hint_processor::hint_processor_definition::{
     HintProcessor, HintProcessorLogic, HintReference,
 };
 use cairo_vm::serde::deserialize_program::{
-    ApTracking, BuiltinName, FlowTrackingData, HintParams, ReferenceManager,
+    ApTracking, BuiltinName, FlowTrackingData, HintParams, InputFile, InstructionLocation,
+    Location, ReferenceManager,
 };
 use cairo_vm::types::exec_scope::ExecutionScopes;
 use cairo_vm::types::program::Program;
@@ -32,6 +33,8 @@ use cairo_vm::vm::errors::memory_errors::MemoryError;
 use cairo_vm::vm::errors::vm_errors::VirtualMachineError;
 use cairo_vm::vm::runners::cairo_runner::{CairoRunner, ResourceTracker, RunResources};
 use cairo_vm::vm::vm_core::VirtualMachine;
+use cairo_vm_tracer::error::trace_data_errors::TraceDataError;
+use cairo_vm_tracer::tracer::run_tracer;
 use dict_manager::DictManagerExecScope;
 use itertools::Itertools;
 use num_bigint::{BigInt, BigUint};
@@ -2100,12 +2103,38 @@ where
     Instructions: Iterator<Item = &'a Instruction> + Clone,
 {
     let data: Vec<MaybeRelocatable> = instructions
+        .clone()
         .flat_map(|inst| inst.assemble().encode())
         .map(Felt252::from)
         .map(MaybeRelocatable::from)
         .collect();
 
     let data_len = data.len();
+    let mut instruction_locations: HashMap<usize, InstructionLocation> = HashMap::new();
+    let mut offset = 0;
+    for (_, inst) in instructions.enumerate() {
+        if inst.debug_info.is_some() {
+            instruction_locations.insert(
+                offset,
+                InstructionLocation {
+                    inst: Location {
+                        end_line: 11
+                            + inst.debug_info.as_ref().unwrap().sierra_statement_idx as u32,
+                        start_line: 11
+                            + inst.debug_info.as_ref().unwrap().sierra_statement_idx as u32,
+                        input_file: InputFile {
+                            filename: "/Users/kunaljain/Code/cairo/sierra_program.txt".to_string(),
+                        },
+                        parent_location: None, // TODO: Add parent location
+                        end_col: 10,
+                        start_col: 0,
+                    },
+                    hints: vec![], // TODO: Implement things for hint
+                },
+            );
+        };
+        offset += inst.body.op_size();
+    }
     let program = Program::new(
         builtins,
         data,
@@ -2114,7 +2143,7 @@ where
         ReferenceManager { references: Vec::new() },
         HashMap::new(),
         vec![],
-        None,
+        Some(instruction_locations), // TODO: Add instruction location
     )
     .map_err(CairoRunError::from)?;
     let mut runner = CairoRunner::new(&program, "all_cairo", false)
@@ -2128,7 +2157,33 @@ where
     runner.run_until_pc(end, vm, hint_processor).map_err(CairoRunError::from)?;
     runner.end_run(true, false, vm, hint_processor).map_err(CairoRunError::from)?;
     runner.relocate(vm, true).map_err(CairoRunError::from)?;
+
+    start_tracer(&runner, &vm).unwrap();
     Ok((runner.relocated_memory, vm.get_relocated_trace().unwrap().last().unwrap().ap))
+}
+
+fn start_tracer(cairo_runner: &CairoRunner, vm: &VirtualMachine) -> Result<(), TraceDataError> {
+    let relocation_table =
+        vm.relocate_segments().map_err(TraceDataError::FailedToGetRelocationTable)?;
+    // dbg!(relocation_table.clone());
+
+    let instruction_locations =
+        cairo_runner.get_program().get_relocated_instruction_locations(relocation_table.as_ref());
+    // dbg!(instruction_locations.clone());
+    let debug_info =
+        instruction_locations.map(cairo_vm::serde::deserialize_program::DebugInfo::new);
+
+    let relocated_trace =
+        vm.get_relocated_trace().map_err(TraceDataError::FailedToRelocateTrace)?;
+
+    run_tracer(
+        cairo_runner.get_program().clone(),
+        cairo_runner.relocated_memory.clone(),
+        relocated_trace.clone(),
+        1,
+        debug_info,
+    )?;
+    Ok(())
 }
 
 /// Formats the given felts as a debug string.
@@ -2168,7 +2223,11 @@ impl FormattedItem {
     }
     /// Wraps the formatted item with quote, if it's a string. Otherwise returns it as is.
     pub fn quote_if_string(self) -> String {
-        if self.is_string { format!("\"{}\"", self.item) } else { self.item }
+        if self.is_string {
+            format!("\"{}\"", self.item)
+        } else {
+            self.item
+        }
     }
 }
 

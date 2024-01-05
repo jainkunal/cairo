@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use cairo_lang_casm::instructions::{Instruction, InstructionBody, RetInstruction};
+use cairo_lang_casm::instructions::{
+    Instruction, InstructionBody, RetInstruction, SierraDebugInfo,
+};
 use cairo_lang_sierra::extensions::core::{CoreConcreteLibfunc, CoreLibfunc, CoreType};
 use cairo_lang_sierra::extensions::lib_func::SierraApChange;
 use cairo_lang_sierra::extensions::ConcreteLibfunc;
@@ -113,6 +115,7 @@ pub fn compile(
 
     // Maps statement_idx to program_offset. The last value (for statement_idx=number-of-statements)
     // contains the final offset (the size of the program code segment).
+    dbg!(program.statements.len());
     let mut statement_offsets = Vec::with_capacity(program.statements.len());
     let mut statement_indices = Vec::with_capacity(program.statements.len());
 
@@ -170,7 +173,11 @@ pub fn compile(
 
                 let ret_instruction = RetInstruction {};
                 program_offset += ret_instruction.op_size();
-                instructions.push(Instruction::new(InstructionBody::Ret(ret_instruction), false));
+                instructions.push(Instruction::new(
+                    InstructionBody::Ret(ret_instruction),
+                    false,
+                    Some(SierraDebugInfo { sierra_statement_idx: statement_id }),
+                ));
             }
             Statement::Invocation(invocation) => {
                 let (annotations, invoke_refs) = program_annotations
@@ -211,7 +218,12 @@ pub fn compile(
                         relocation: entry.relocation,
                     });
                 }
-                instructions.extend(compiled_invocation.instructions);
+                // dbg!(compiled_invocation.instructions.clone());
+                for mut inst in compiled_invocation.instructions.clone() {
+                    inst.debug_info = Some(SierraDebugInfo { sierra_statement_idx: statement_id });
+                    instructions.push(inst);
+                }
+                // instructions.extend(compiled_invocation.instructions);
 
                 let updated_annotations = StatementAnnotations {
                     environment: compiled_invocation.environment,
@@ -256,6 +268,8 @@ pub fn compile(
     statement_offsets.push(program_offset);
 
     relocate_instructions(&relocations, &statement_offsets, &mut instructions);
+    dbg!(instructions.len());
+    dbg!(statement_offsets.len());
 
     Ok(CairoProgram {
         instructions,
